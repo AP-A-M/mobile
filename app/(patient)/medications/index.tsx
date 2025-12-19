@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { Text, Surface, Button, IconButton, useTheme, FAB, Chip } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { api } from '@/config/api';
 
 const medications = [
     {
@@ -33,16 +34,54 @@ export default function MedicationTrackingScreen() {
     const theme = useTheme();
     const router = useRouter();
     const [meds, setMeds] = useState(medications);
+    const [patientId, setPatientId] = useState(1); // TODO: Get from auth
+    const [loading, setLoading] = useState(false);
 
-    const toggleTaken = (medId: string, timeIndex: number) => {
-        setMeds(meds.map(med => {
+    useEffect(() => {
+        fetchMedications();
+    }, []);
+
+    const fetchMedications = async () => {
+        setLoading(true);
+        try {
+            const data = await api.getPatientMedications(patientId);
+            if (data && data.length > 0) {
+                // Transform API data to match UI
+                const transformed = data.map((med: any) => ({
+                    id: med.id_suivi?.toString(),
+                    name: med.nom_commercial,
+                    dosage: med.dosage,
+                    frequency: med.frequence,
+                    times: ['08:00', '14:00', '20:00'], // TODO: Parse from frequence
+                    startDate: new Date(med.date_debut).toLocaleDateString('fr-FR'),
+                    endDate: med.date_fin ? new Date(med.date_fin).toLocaleDateString('fr-FR') : 'Traitement continu',
+                    taken: [med.pris, false, false], // TODO: Better tracking
+                    prescribedBy: 'Via ordonnance',
+                }));
+                setMeds(transformed);
+            }
+        } catch (error) {
+            console.error('Failed to fetch medications:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const toggleTaken = async (medId: string, timeIndex: number) => {
+        const updatedMeds = meds.map(med => {
             if (med.id === medId) {
                 const newTaken = [...med.taken];
                 newTaken[timeIndex] = !newTaken[timeIndex];
+
+                // Update backend
+                api.updateMedicationTracking(parseInt(medId), newTaken[timeIndex])
+                    .catch(err => console.error('Failed to update:', err));
+
                 return { ...med, taken: newTaken };
             }
             return med;
-        }));
+        });
+        setMeds(updatedMeds);
     };
 
     return (

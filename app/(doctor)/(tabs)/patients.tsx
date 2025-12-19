@@ -1,58 +1,55 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Text, Searchbar, Avatar, Surface, Chip, useTheme, FAB } from 'react-native-paper';
 import { useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { api } from '@/config/api';
 
-const patients = [
-    {
-        id: '1',
-        name: 'Sophie Martin',
-        age: 34,
-        lastVisit: '12 Mars 2024',
-        condition: 'Migraine chronique',
-        status: 'critical',
-        avatar: 'SM',
-    },
-    {
-        id: '2',
-        name: 'Jean Dupont',
-        age: 45,
-        lastVisit: '10 Mars 2024',
-        condition: 'Hypertension',
-        status: 'stable',
-        avatar: 'JD',
-    },
-    {
-        id: '3',
-        name: 'Marie Curie',
-        age: 29,
-        lastVisit: '05 Mars 2024',
-        condition: 'Suivi grossesse',
-        status: 'stable',
-        avatar: 'MC',
-    },
-    {
-        id: '4',
-        name: 'Pierre Durand',
-        age: 52,
-        lastVisit: '01 Mars 2024',
-        condition: 'Diabète type 2',
-        status: 'attention',
-        avatar: 'PD',
-    },
-];
-
-export default function PatientsScreen() {
+export default function DoctorPatientsScreen() {
     const router = useRouter();
     const theme = useTheme();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedFilter, setSelectedFilter] = useState('all');
+    const [patients, setPatients] = useState([]);
+    const [proId, setProId] = useState(1); // TODO: Get from auth
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        fetchMyPatients();
+    }, []);
+
+    const fetchMyPatients = async () => {
+        setLoading(true);
+        try {
+            const data = await api.getDoctorPatients(proId);
+            if (data && data.length > 0) {
+                const transformed = data.map((p: any) => ({
+                    id: p.id_patient?.toString(),
+                    name: `${p.nom} ${p.prenom}`,
+                    age: new Date().getFullYear() - new Date(p.date_nais).getFullYear(),
+                    lastVisit: new Date(p.date_debut).toLocaleDateString('fr-FR'),
+                    condition: p.allergies !== 'Aucune' ? 'Allergies' : 'Aucune condition',
+                    status: 'active', // All patients from API will have 'active' status for now
+                    avatar: `${p.prenom.charAt(0)}${p.nom.charAt(0)}`.toUpperCase(),
+                }));
+                setPatients(transformed);
+            } else {
+                setPatients([]); // Clear patients if no data
+            }
+        } catch (error) {
+            console.error('Failed to fetch patients:', error);
+            setPatients([]); // Clear patients on error
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const filteredPatients = patients.filter(patient =>
         patient.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
         (selectedFilter === 'all' ||
             (selectedFilter === 'critical' && patient.status === 'critical') ||
-            (selectedFilter === 'attention' && patient.status === 'attention'))
+            (selectedFilter === 'attention' && patient.status === 'attention') ||
+            (selectedFilter === 'active' && patient.status === 'active')) // Added 'active' filter
     );
 
     const getStatusColor = (status: string) => {

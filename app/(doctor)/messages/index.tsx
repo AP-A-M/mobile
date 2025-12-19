@@ -1,43 +1,48 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Text, Surface, Searchbar, IconButton, useTheme, Avatar, Badge } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { api } from '@/config/api';
 
-const conversations = [
-    {
-        id: '1',
-        patientId: 'p1',
-        patientName: 'Sophie Martin',
-        avatar: 'SM',
-        lastMessage: 'Merci docteur, je me sens mieux',
-        timestamp: '10:30',
-        unread: 2,
-    },
-    {
-        id: '2',
-        patientId: 'p2',
-        patientName: 'Jean Dupont',
-        avatar: 'JD',
-        lastMessage: 'J\'ai une question sur mon traitement',
-        timestamp: 'Hier',
-        unread: 0,
-    },
-    {
-        id: '3',
-        patientId: 'p3',
-        patientName: 'Marie Leclerc',
-        avatar: 'ML',
-        lastMessage: 'Pouvez-vous renouveler mon ordonnance ?',
-        timestamp: '15/03',
-        unread: 1,
-    },
-];
-
-export default function MessagesScreen() {
+export default function DoctorMessagesScreen() {
     const theme = useTheme();
     const router = useRouter();
     const [searchQuery, setSearchQuery] = useState('');
+    const [conversations, setConversations] = useState<any[]>([]);
+    const [proId, setProId] = useState(1); // TODO: Get from auth
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        fetchConversations();
+    }, []);
+
+    const fetchConversations = async () => {
+        setLoading(true);
+        try {
+            const data = await api.getConversations(proId);
+            if (data && data.length > 0) {
+                const transformed = data.map((conv: any) => ({
+                    id: conv.other_user_id?.toString(),
+                    patientId: conv.other_user_id?.toString(),
+                    patientName: 'Patient ' + conv.other_user_id,
+                    avatar: 'PT',
+                    lastMessage: 'Cliquez pour voir les messages',
+                    timestamp: new Date(conv.last_message_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+                    unread: 0,
+                }));
+                setConversations(transformed);
+            }
+        } catch (error) {
+            console.error('Failed to fetch conversations:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const filteredConversations = conversations.filter(conv =>
+        conv.patientName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     return (
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -59,44 +64,52 @@ export default function MessagesScreen() {
                     elevation={0}
                 />
 
-                {conversations.map((conv) => (
-                    <Surface
-                        key={conv.id}
-                        style={styles.conversationCard}
-                        onTouchEnd={() => router.push(`/(doctor)/messages/${conv.patientId}` as any)}
-                    >
-                        <View style={styles.conversationHeader}>
-                            <Avatar.Text
-                                size={56}
-                                label={conv.avatar}
-                                style={{ backgroundColor: '#E3F2FD' }}
-                                labelStyle={{ color: '#42A5F5' }}
-                            />
-                            <View style={{ marginLeft: 12, flex: 1 }}>
-                                <Text variant="titleMedium" style={{ fontWeight: 'bold' }}>
-                                    {conv.patientName}
-                                </Text>
-                                <Text
-                                    variant="bodyMedium"
-                                    style={{ color: theme.colors.secondary, marginTop: 4 }}
-                                    numberOfLines={1}
-                                >
-                                    {conv.lastMessage}
-                                </Text>
+                {loading ? (
+                    <Text style={{ textAlign: 'center', marginTop: 20 }}>Chargement...</Text>
+                ) : filteredConversations.length === 0 ? (
+                    <Text style={{ textAlign: 'center', marginTop: 20, color: theme.colors.secondary }}>
+                        Aucune conversation
+                    </Text>
+                ) : (
+                    filteredConversations.map((conv) => (
+                        <Surface
+                            key={conv.id}
+                            style={styles.conversationCard}
+                            onTouchEnd={() => router.push(`/(doctor)/messages/${conv.patientId}` as any)}
+                        >
+                            <View style={styles.conversationHeader}>
+                                <Avatar.Text
+                                    size={56}
+                                    label={conv.avatar}
+                                    style={{ backgroundColor: '#E3F2FD' }}
+                                    labelStyle={{ color: '#42A5F5' }}
+                                />
+                                <View style={{ marginLeft: 12, flex: 1 }}>
+                                    <Text variant="titleMedium" style={{ fontWeight: 'bold' }}>
+                                        {conv.patientName}
+                                    </Text>
+                                    <Text
+                                        variant="bodyMedium"
+                                        style={{ color: theme.colors.secondary, marginTop: 4 }}
+                                        numberOfLines={1}
+                                    >
+                                        {conv.lastMessage}
+                                    </Text>
+                                </View>
+                                <View style={{ alignItems: 'flex-end' }}>
+                                    <Text variant="bodySmall" style={{ color: theme.colors.secondary }}>
+                                        {conv.timestamp}
+                                    </Text>
+                                    {conv.unread > 0 && (
+                                        <Badge style={{ backgroundColor: theme.colors.primary, marginTop: 8 }}>
+                                            {conv.unread}
+                                        </Badge>
+                                    )}
+                                </View>
                             </View>
-                            <View style={{ alignItems: 'flex-end' }}>
-                                <Text variant="bodySmall" style={{ color: theme.colors.secondary }}>
-                                    {conv.timestamp}
-                                </Text>
-                                {conv.unread > 0 && (
-                                    <Badge style={{ backgroundColor: theme.colors.primary, marginTop: 8 }}>
-                                        {conv.unread}
-                                    </Badge>
-                                )}
-                            </View>
-                        </View>
-                    </Surface>
-                ))}
+                        </Surface>
+                    ))
+                )}
             </ScrollView>
         </View>
     );

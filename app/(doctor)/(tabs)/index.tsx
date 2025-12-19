@@ -1,49 +1,60 @@
-import React from 'react';
+```typescript
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { Text, Surface, Avatar, Button, useTheme, IconButton } from 'react-native-paper';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { api } from '@/config/api';
 
 const { width } = Dimensions.get('window');
 
-const stats = [
-    {
-        id: '1',
-        title: 'Patients',
-        value: '12',
-        subtitle: 'Aujourd\'hui',
-        icon: 'account-group' as const,
-        color: '#2196F3',
-    },
-    {
-        id: '2',
-        title: 'Demandes',
-        value: '3',
-        subtitle: 'En attente',
-        icon: 'bell-ring' as const,
-        color: '#42A5F5',
-    },
-    {
-        id: '3',
-        title: 'Messages',
-        value: '5',
-        subtitle: 'Non lus',
-        icon: 'message-text' as const,
-        color: '#42A5F5',
-    },
-];
-
-const nextAppointment = {
-    id: '1',
-    patientName: 'Sophie Martin',
-    time: '10:30',
-    type: 'Consultation Vidéo',
-    avatar: 'SM',
-};
-
-export default function DoctorDashboard() {
+export default function DoctorHomeScreen() {
     const router = useRouter();
     const theme = useTheme();
+    const [proId, setProId] = useState(1); // TODO: Get from auth
+    const [stats, setStats] = useState([]);
+    const [todayAppts, setTodayAppts] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        fetchDashboardData();
+    }, []);
+
+    const fetchDashboardData = async () => {
+        setLoading(true);
+        try {
+            // Fetch stats
+            const statsResponse = await api.getStats();
+            if (statsResponse) {
+                setStats([
+                    { id: '1', title: 'Patients', value: statsResponse.total_patients?.toString() || '0', subtitle: 'Total', icon: 'account-group' as const, color: '#2196F3' },
+                    { id: '2', title: 'RDV Aujourd\'hui', value: statsResponse.rdv_today?.toString() || '0', subtitle: 'Confirmés', icon: 'calendar-today' as const, color: '#66BB6A' },
+                    { id: '3', title: 'Messages', value: statsResponse.new_messages?.toString() || '0', subtitle: 'Non lus', icon: 'message-text' as const, color: '#FFA726' },
+                ]);
+            }
+
+            // Fetch today's appointments
+            const appts = await api.getAppointments();
+            const today = new Date().toISOString().split('T')[0];
+            const todayOnly = appts.filter((apt: any) => 
+                apt.date_rdv.startsWith(today) && apt.id_pro_sante === proId
+            );
+            setTodayAppts(todayOnly.map((apt: any) => ({
+                id: apt.id_rdv?.toString(),
+                patientName: apt.nom || 'Patient',
+                time: new Date(apt.date_rdv).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+                type: apt.type || 'Consultation',
+                status: apt.statut,
+                avatar: apt.nom ? apt.nom.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) : 'PT',
+            })));
+        } catch (error) {
+            console.error('Failed to fetch dashboard data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const nextAppointment = todayAppts.length > 0 ? todayAppts[0] : null;
 
     return (
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>

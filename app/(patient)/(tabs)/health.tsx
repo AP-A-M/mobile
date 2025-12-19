@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { Text, Surface, FAB, useTheme, Chip, IconButton } from 'react-native-paper';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import ProgressCard from '@/components/common/ProgressCard';
 import HealthInfoCard from '@/components/patient/HealthInfoCard';
+import { api } from '@/config/api';
 
 const { width } = Dimensions.get('window');
 
@@ -70,6 +71,36 @@ export default function HealthScreen() {
   const router = useRouter();
   const theme = useTheme();
   const [selectedFilter, setSelectedFilter] = useState('all');
+  const [patientId, setPatientId] = useState(1); // TODO: Get from auth
+  const [entries, setEntries] = useState(healthEntries);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchJournal();
+  }, []);
+
+  const fetchJournal = async () => {
+    setLoading(true);
+    try {
+      const data = await api.getHealthJournal(patientId);
+      if (data && data.length > 0) {
+        // Transform API data to match UI format
+        const transformed = data.map((entry: any) => ({
+          id: entry.id_entree?.toString(),
+          date: new Date(entry.date_entree).toLocaleDateString('fr-FR'),
+          type: entry.niveau_douleur ? 'symptome' : 'mesure',
+          description: entry.description,
+          value: entry.niveau_douleur ? `${entry.niveau_douleur}/10` : entry.humeur,
+          icon: 'medical' as const,
+        }));
+        setEntries(transformed);
+      }
+    } catch (error) {
+      console.error('Failed to fetch health journal:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>

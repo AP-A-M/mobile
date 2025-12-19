@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Text, Searchbar, SegmentedButtons, FAB, useTheme, Surface, Chip } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Calendar from '@/components/common/Calendar';
 import RecentVisitCard from '@/components/patient/RecentVisitCard';
+import { api } from '@/config/api';
 
 const upcomingAppointments = [
   {
